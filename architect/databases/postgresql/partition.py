@@ -14,7 +14,7 @@ from ...exceptions import (
 
 
 class Partition(BasePartition):
-    def prepare(self, schema):
+    def prepare(self, schema=None):
         """
         Prepares needed triggers and functions for those triggers.
         """
