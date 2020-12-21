@@ -28,8 +28,7 @@ class Partition(BasePartition):
 
             definitions[definition] = '\n'.join(definitions[definition]).format(**formatters)
         if schema:
-            return self.database.execute(
-                f"""SET search_path TO \"{schema}\"""")
+            self.database.execute(f"""SET search_path TO \"{schema}\"""")
 
         execute_sql = """
             -- We need to create a before insert function
