@@ -14,7 +14,7 @@ from ...exceptions import (
 
 
 class Partition(BasePartition):
-    def prepare(self):
+    def prepare(self, schema=None):
         """
         Prepares needed triggers and functions for those triggers.
         """
@@ -27,6 +27,8 @@ class Partition(BasePartition):
                     definitions[definition][index] = '    ' * indentation[definition] + definitions[definition][index]
 
             definitions[definition] = '\n'.join(definitions[definition]).format(**formatters)
+        if schema:
+            self.database.execute(f"""SET search_path TO \"{schema}\"""")
 
         execute_sql = """
             -- We need to create a before insert function
@@ -66,10 +68,11 @@ class Partition(BasePartition):
                 SELECT 1
                 FROM information_schema.triggers
                 WHERE event_object_table = '{{parent_table}}'
+                AND event_object_schema = '{{schema}}'
                 AND trigger_name = 'before_insert_{{parent_table}}_trigger'
             ) THEN
                 CREATE TRIGGER before_insert_{{parent_table}}_trigger
-                    BEFORE INSERT ON "{{parent_table}}"
+                    BEFORE INSERT ON "{{schema}}".{{parent_table}}
                     FOR EACH ROW EXECUTE PROCEDURE {{parent_table}}_insert_child();
             END IF;
             END $$;
@@ -92,10 +95,11 @@ class Partition(BasePartition):
                 SELECT 1
                 FROM information_schema.triggers
                 WHERE event_object_table = '{{parent_table}}'
+                AND event_object_schema = '{{schema}}'
                 AND trigger_name = 'after_insert_{{parent_table}}_trigger'
             ) THEN
                 CREATE TRIGGER after_insert_{{parent_table}}_trigger
-                    AFTER INSERT ON "{{parent_table}}"
+                    AFTER INSERT ON "{{schema}}".{{parent_table}}
                     FOR EACH ROW EXECUTE PROCEDURE {{parent_table}}_delete_master();
             END IF;
             END $$;
@@ -104,6 +108,7 @@ class Partition(BasePartition):
         return self.database.execute(execute_sql.format(**definitions).format(
             pk=' AND '.join('{pk} = NEW.{pk}'.format(pk=pk) for pk in self.pks),
             parent_table=self.table,
+            schema=schema if schema else 'public',
             column='"{0}"'.format(self.column_name),
             return_val='NULL' if self.return_null else 'NEW'
         ))
